@@ -18,6 +18,12 @@ manager:
   metrics:
     bindAddress: ":8080"
 
+  # gcr.io/kubebuilder is deprecated - override to quay.io
+  kubeRbacProxy:
+    image:
+      repository: quay.io/brancz/kube-rbac-proxy
+      tag: v0.18.1
+
 serviceMonitor:
   enabled: true
   namespace: k8sgpt-operator-system
