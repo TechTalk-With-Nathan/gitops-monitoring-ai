@@ -13,8 +13,6 @@ cluster:
 	k3d cluster create $(CLUSTER_NAME) \
 		--servers 1 \
 		--agents 2 \
-		--port "80:80@loadbalancer" \
-		--port "443:443@loadbalancer" \
 		--k3s-arg "--disable=traefik@server:0"
 	kubectl wait --for=condition=Ready nodes --all --timeout=120s
 

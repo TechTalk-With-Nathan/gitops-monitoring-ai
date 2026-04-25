@@ -133,10 +133,6 @@ grafana:
       memory: 512Mi
       cpu: 500m
 
-  # Install Grafana plugins needed for the demo
-  plugins:
-    - grafana-infinity-datasource
-
 ## ── Node Exporter / Kube State Metrics ────────────────────────────────────────
 
 nodeExporter:

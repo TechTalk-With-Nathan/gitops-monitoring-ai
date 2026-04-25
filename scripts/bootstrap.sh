@@ -31,8 +31,6 @@ create_cluster() {
   k3d cluster create "$CLUSTER_NAME" \
     --servers 1 \
     --agents 2 \
-    --port "80:80@loadbalancer" \
-    --port "443:443@loadbalancer" \
     --k3s-arg "--disable=traefik@server:0" \
     --wait
 
@@ -52,8 +50,8 @@ install_argocd() {
   kubectl apply -n argocd \
     -f "https://raw.githubusercontent.com/argoproj/argo-cd/${ARGOCD_VERSION}/manifests/install.yaml"
 
-  log "Waiting for ArgoCD server to be ready (up to 5 min)..."
-  kubectl wait --for=condition=available --timeout=300s \
+  log "Waiting for ArgoCD server to be ready (up to 10 min)..."
+  kubectl wait --for=condition=available --timeout=600s \
     deployment/argocd-server -n argocd
 
   ARGOCD_PWD=$(kubectl -n argocd get secret argocd-initial-admin-secret \
@@ -66,13 +64,6 @@ install_argocd() {
 }
 
 configure_argocd_repo() {
-  if [[ "$REPO_URL" == *"TechTalk-With-Nathan"* ]]; then
-    warn "REPO_URL is still the placeholder. Update it before deploying."
-    warn "  export REPO_URL=https://github.com/TechTalk-With-Nathan/gitops-monitoring-ai"
-    warn "  Then re-run: $0"
-    return
-  fi
-
   log "Registering repo $REPO_URL with ArgoCD"
   # Use ArgoCD CLI if available, otherwise apply the Application directly
   if command -v argocd &>/dev/null; then

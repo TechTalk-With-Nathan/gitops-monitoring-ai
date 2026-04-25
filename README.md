@@ -1,8 +1,7 @@
 # GitOps Monitoring + AI SRE Agent
 
-**Episode 5 — TechTalk With Nathan**
 
-A fully GitOps-managed observability stack with an AI agent that automatically analyzes Kubernetes issues, interprets logs and metrics, and surfaces root cause in plain English — directly in Grafana.
+A fully GitOps-managed observability stack with an AI agent that automatically analyzes Kubernetes issues, interprets logs and metrics, and surfaces root cause in plain English directly in Grafana.
 
 ## Architecture
 
@@ -86,15 +85,15 @@ make port-forward-ollama    # Ollama   → http://localhost:11434
 
 ### 1. Normal State
 - Open Grafana → explore Kubernetes dashboards (pre-loaded from kube-prometheus-stack)
-- Show the demo app at `localhost:8090` — online shop with live traffic
-- Open **AI SRE Agent** dashboard — shows 0 active issues
+- Show the demo app at `localhost:8090` : online shop with live traffic
+- Open **AI SRE Agent** dashboard : shows 0 active issues
 
 ### 2. Inject a Fault (GitOps style)
 ```bash
 # Option A: via make (direct kubectl apply)
 make inject-error-rate
 
-# Option B: GitOps way — commit the fault, ArgoCD syncs it
+# Option B: GitOps way : commit the fault, ArgoCD syncs it
 git add demo-app/fault-injection/high-error-rate.yaml
 git commit -m "demo: inject product catalog errors"
 git push
@@ -209,7 +208,7 @@ On alert:
 **Ollama model pull is slow/stuck**
 ```bash
 kubectl logs job/ollama-model-init -n ai-agent -f
-# Model is ~2.5GB — allow 5-10 min on first pull
+# Model is ~2.5GB : allow 5-10 min on first pull
 ```
 
 **k8sgpt not creating Results**
