@@ -1,0 +1,61 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ollama-model-init
+  namespace: ai-agent
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 600
+  template:
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+        # Wait for Ollama to be ready before pulling the model
+        - name: wait-for-ollama
+          image: curlimages/curl:latest
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for Ollama to be ready..."
+              until curl -sf http://ollama.ai-agent.svc.cluster.local:11434/api/tags; do
+                echo "  ... not ready yet"
+                sleep 5
+              done
+              echo "Ollama is ready."
+      containers:
+        - name: model-pull
+          image: curlimages/curl:latest
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              OLLAMA_URL="http://ollama.ai-agent.svc.cluster.local:11434"
+
+              echo "==> Pulling llama3.2:3b (primary model for k8sgpt analysis)"
+              curl -sf -X POST "$OLLAMA_URL/api/pull" \
+                -H "Content-Type: application/json" \
+                -d '{"name":"llama3.2:3b","stream":false}' \
+                --max-time 480
+
+              echo ""
+              echo "==> Verifying model is available"
+              curl -sf "$OLLAMA_URL/api/tags" | grep -q "llama3.2:3b"
+
+              echo ""
+              echo "==> Running a quick sanity test"
+              RESPONSE=$(curl -sf -X POST "$OLLAMA_URL/api/generate" \
+                -H "Content-Type: application/json" \
+                -d '{"model":"llama3.2:3b","prompt":"In one sentence, what is a Kubernetes CrashLoopBackOff?","stream":false}')
+              echo "Test response: $RESPONSE"
+
+              echo ""
+              echo "==> Model init complete. llama3.2:3b is ready for k8sgpt."
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi

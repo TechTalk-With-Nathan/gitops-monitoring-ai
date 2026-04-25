@@ -1,0 +1,67 @@
+## Loki values - single-binary mode for demo (swap to distributed for prod)
+## chart: grafana/loki v6.21.0
+
+deploymentMode: SingleBinary
+
+loki:
+  auth_enabled: false
+
+  commonConfig:
+    replication_factor: 1
+
+  schemaConfig:
+    configs:
+      - from: "2024-01-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: loki_index_
+          period: 24h
+
+  storage:
+    type: filesystem
+
+  limits_config:
+    # Allow up to 30d of retention for demo
+    retention_period: 744h
+    # Accept out-of-order logs (common in k8s)
+    ingestion_rate_mb: 16
+    ingestion_burst_size_mb: 32
+    max_query_parallelism: 32
+    split_queries_by_interval: 15m
+    max_entries_limit_per_query: 5000
+
+  ruler:
+    enabled: false
+
+singleBinary:
+  replicas: 1
+  persistence:
+    enabled: true
+    size: 20Gi
+
+# Expose a gateway so Alloy and the receiver can push logs without auth
+gateway:
+  enabled: true
+  service:
+    type: ClusterIP
+
+# Disable unneeded components for demo
+read:
+  replicas: 0
+write:
+  replicas: 0
+backend:
+  replicas: 0
+
+# The Loki canary checks loki is working end-to-end
+test:
+  enabled: false
+lokiCanary:
+  enabled: false
+
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false

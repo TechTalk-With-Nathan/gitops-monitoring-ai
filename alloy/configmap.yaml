@@ -1,0 +1,191 @@
+## Alloy ConfigMap - managed by ArgoCD, consumed by the Alloy DaemonSet.
+## The canonical human-readable form lives in alloy/config.alloy;
+## this ConfigMap is the deployed form that Alloy hot-reloads from.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alloy-config
+  namespace: monitoring
+data:
+  config.alloy: |
+    // ============================================================================
+    // Grafana Alloy - unified collector
+    // Collects: metrics → Prometheus, logs → Loki, traces → Tempo
+    // ============================================================================
+
+    // ── Kubernetes Discovery ────────────────────────────────────────────────────
+
+    discovery.kubernetes "pods" {
+      role = "pod"
+    }
+
+    discovery.kubernetes "nodes" {
+      role = "node"
+    }
+
+    // ── Log Collection ──────────────────────────────────────────────────────────
+
+    discovery.relabel "pod_logs" {
+      targets = discovery.kubernetes.pods.targets
+
+      rule {
+        source_labels = ["__meta_kubernetes_pod_phase"]
+        regex         = "Pending|Succeeded|Failed|Unknown"
+        action        = "drop"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_namespace"]
+        target_label  = "namespace"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_pod_name"]
+        target_label  = "pod"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_pod_container_name"]
+        target_label  = "container"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+        target_label  = "app"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_pod_uid", "__meta_kubernetes_pod_container_name"]
+        separator     = "/"
+        action        = "replace"
+        replacement   = "/var/log/pods/*$1/*.log"
+        target_label  = "__path__"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_namespace", "__meta_kubernetes_pod_name"]
+        separator     = "/"
+        target_label  = "job"
+      }
+    }
+
+    local.file_match "pod_logs" {
+      path_targets = discovery.relabel.pod_logs.output
+    }
+
+    loki.source.file "pod_logs" {
+      targets    = local.file_match.pod_logs.targets
+      forward_to = [loki.process.pod_logs.receiver]
+    }
+
+    loki.process "pod_logs" {
+      stage.cri {}
+      stage.drop {
+        expression              = ".*level=debug.*"
+        drop_counter_reason     = "debug_drop"
+      }
+      forward_to = [loki.write.local.receiver]
+    }
+
+    loki.source.kubernetes_events "cluster_events" {
+      job_name   = "integrations/kubernetes/eventhandler"
+      log_format = "logfmt"
+      forward_to = [loki.write.local.receiver]
+    }
+
+    loki.write "local" {
+      endpoint {
+        url = "http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push"
+      }
+      external_labels = {
+        cluster = "gitops-monitoring-ai",
+      }
+    }
+
+    // ── Metrics Collection ──────────────────────────────────────────────────────
+
+    discovery.relabel "annotated_pods" {
+      targets = discovery.kubernetes.pods.targets
+
+      rule {
+        source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_scrape"]
+        regex         = "true"
+        action        = "keep"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_scheme"]
+        target_label  = "__scheme__"
+        regex         = "(https?)"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_pod_annotation_prometheus_io_path"]
+        target_label  = "__metrics_path__"
+        regex         = "(.+)"
+      }
+      rule {
+        source_labels = ["__address__", "__meta_kubernetes_pod_annotation_prometheus_io_port"]
+        regex         = "([^:]+)(?::\\d+)?;(\\d+)"
+        replacement   = "$1:$2"
+        target_label  = "__address__"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_namespace"]
+        target_label  = "namespace"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_pod_name"]
+        target_label  = "pod"
+      }
+      rule {
+        source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+        target_label  = "app"
+      }
+    }
+
+    prometheus.scrape "annotated_pods" {
+      targets         = discovery.relabel.annotated_pods.output
+      forward_to      = [prometheus.remote_write.local.receiver]
+      scrape_interval = "30s"
+      scrape_timeout  = "10s"
+    }
+
+    prometheus.exporter.self "alloy" {}
+
+    prometheus.scrape "alloy_self" {
+      targets         = prometheus.exporter.self.alloy.targets
+      forward_to      = [prometheus.remote_write.local.receiver]
+      scrape_interval = "60s"
+    }
+
+    prometheus.remote_write "local" {
+      endpoint {
+        url = "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/api/v1/write"
+      }
+      external_labels = {
+        cluster = "gitops-monitoring-ai",
+      }
+    }
+
+    // ── OTel Traces Receiver ────────────────────────────────────────────────────
+
+    otelcol.receiver.otlp "default" {
+      grpc { endpoint = "0.0.0.0:4317" }
+      http { endpoint = "0.0.0.0:4318" }
+      output {
+        traces  = [otelcol.processor.batch.default.input]
+        metrics = [otelcol.exporter.prometheus.default.input]
+      }
+    }
+
+    otelcol.processor.batch "default" {
+      timeout         = "5s"
+      send_batch_size = 1000
+      output {
+        traces = [otelcol.exporter.otlp.tempo.input]
+      }
+    }
+
+    otelcol.exporter.otlp "tempo" {
+      client {
+        endpoint = "tempo.monitoring.svc.cluster.local:4317"
+        tls { insecure = true }
+      }
+    }
+
+    otelcol.exporter.prometheus "default" {
+      forward_to = [prometheus.remote_write.local.receiver]
+    }

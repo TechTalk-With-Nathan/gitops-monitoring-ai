@@ -1,0 +1,71 @@
+# k8sgpt needs cluster-wide read access to analyze resources across all namespaces
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: k8sgpt
+  namespace: k8sgpt-operator-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: k8sgpt-analyzer
+rules:
+  - apiGroups: [""]
+    resources:
+      - pods
+      - services
+      - endpoints
+      - nodes
+      - namespaces
+      - events
+      - configmaps
+      - persistentvolumeclaims
+      - persistentvolumes
+      - replicationcontrollers
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources:
+      - deployments
+      - replicasets
+      - statefulsets
+      - daemonsets
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["batch"]
+    resources:
+      - jobs
+      - cronjobs
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources:
+      - ingresses
+      - networkpolicies
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["storage.k8s.io"]
+    resources:
+      - storageclasses
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["autoscaling"]
+    resources:
+      - horizontalpodautoscalers
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["policy"]
+    resources:
+      - poddisruptionbudgets
+    verbs: ["get", "list", "watch"]
+  # Allow k8sgpt to store Result CRDs
+  - apiGroups: ["core.k8sgpt.ai"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: k8sgpt-analyzer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: k8sgpt-analyzer
+subjects:
+  - kind: ServiceAccount
+    name: k8sgpt
+    namespace: k8sgpt-operator-system

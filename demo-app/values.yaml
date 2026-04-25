@@ -1,0 +1,190 @@
+## OpenTelemetry Demo values
+## chart: open-telemetry/opentelemetry-demo v0.33.3
+##
+## Pre-instrumented microservices app with built-in failure injection via feature flags.
+## Traces → Alloy (OTLP gRPC) → Tempo
+## Metrics → Prometheus scrape annotations
+## Logs → Alloy pod log collection → Loki
+
+default:
+  # Environment variables applied to every service
+  env:
+    - name: OTEL_SERVICE_NAME
+      valueFrom:
+        fieldRef:
+          apiVersion: v1
+          fieldPath: metadata.labels['app.kubernetes.io/component']
+    - name: OTEL_COLLECTOR_NAME
+      value: "alloy.monitoring.svc.cluster.local"
+    - name: OTEL_EXPORTER_OTLP_ENDPOINT
+      value: "http://$(OTEL_COLLECTOR_NAME):4317"
+    - name: OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
+      value: cumulative
+    - name: OTEL_RESOURCE_ATTRIBUTES
+      value: "service.namespace=demo-app,deployment.environment=demo"
+
+  # Prometheus scrape annotations on every pod
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9464"
+
+## ── OpenTelemetry Collector (disabled - we use Alloy instead) ─────────────────
+
+opentelemetry-collector:
+  enabled: false
+
+## ── Jaeger (disabled - we use Tempo) ─────────────────────────────────────────
+
+jaeger:
+  enabled: false
+
+## ── Prometheus (disabled - we use kube-prometheus-stack) ─────────────────────
+
+prometheus:
+  enabled: false
+
+## ── Grafana (disabled - we use kube-prometheus-stack Grafana) ────────────────
+
+grafana:
+  enabled: false
+
+## ── Feature Flag Service ──────────────────────────────────────────────────────
+## Controls failure injection for the demo.
+## Flags are read by individual services - flip them to inject faults.
+
+components:
+  flagd:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+
+  ## ── Core services (keep lean for demo cluster) ──────────────────────────────
+
+  frontend:
+    enabled: true
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  frontendProxy:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+
+  productCatalogService:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+    env:
+      - name: PRODUCT_CATALOG_FAILURE
+        value: "false"  # set to "true" for fault injection
+
+  recommendationService:
+    enabled: true
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
+
+  cartService:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+
+  checkoutService:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+
+  orderingService:
+    enabled: false  # disable Kafka-dependent service for leaner demo
+
+  paymentService:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+
+  shippingService:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+
+  emailService:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+
+  adService:
+    enabled: true
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 512Mi
+
+  currencyService:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+
+  accountingService:
+    enabled: false
+
+  fraudDetectionService:
+    enabled: false
+
+  kafka:
+    enabled: false
+
+  redis:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+
+  loadgenerator:
+    enabled: true
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    env:
+      # Locust load generation config
+      - name: LOCUST_WEB_PORT
+        value: "8089"
+      - name: LOCUST_USERS
+        value: "10"
+      - name: LOCUST_SPAWN_RATE
+        value: "1"
+      - name: LOCUST_HOST
+        value: "http://$(FRONTEND_ADDR)"
+      - name: LOCUST_HEADLESS
+        value: "true"
+      - name: LOCUST_AUTOSTART
+        value: "true"

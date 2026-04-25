@@ -1,0 +1,50 @@
+apiVersion: core.k8sgpt.ai/v1alpha1
+kind: K8sGPT
+metadata:
+  name: k8sgpt
+  namespace: k8sgpt-operator-system
+spec:
+  # AI backend: Ollama running in the ai-agent namespace
+  ai:
+    enabled: true
+    model: llama3.2:3b
+    backend: ollama
+    baseUrl: http://ollama.ai-agent.svc.cluster.local:11434
+
+  # Resource types to analyze
+  filters:
+    - Pod
+    - Deployment
+    - ReplicaSet
+    - StatefulSet
+    - DaemonSet
+    - Service
+    - Ingress
+    - HorizontalPodAutoscaler
+    - PodDisruptionBudget
+
+  # Don't send PII/resource names externally - keep everything local
+  anonymize: false
+
+  # Run analysis every 5 minutes
+  # Results are stored as Result CRDs in k8sgpt-operator-system namespace
+  noCache: false
+
+  # k8sgpt image version - keep in sync with operator
+  repository: ghcr.io/k8sgpt-ai/k8sgpt
+  version: v0.3.41
+
+  # Push results to the webhook receiver which forwards to Loki
+  sink:
+    type: webhook
+    endpoint: http://ai-analysis-receiver.ai-agent.svc.cluster.local:8080/k8sgpt
+
+  # Explain in plain English using the AI backend
+  language: english
+
+  # Namespaces to analyze - analyze all but limit noise
+  # Remove specific entries to focus on relevant namespaces
+  namespaces:
+    - demo-app
+    - monitoring
+    - ai-agent

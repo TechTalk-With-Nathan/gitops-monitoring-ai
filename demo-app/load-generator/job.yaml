@@ -1,0 +1,68 @@
+## Burst load generator - run manually to spike traffic during a live demo
+## The OTel Demo already ships with a steady-state loadgenerator.
+## Use this Job when you want a sudden traffic spike to trigger alerts fast.
+##
+## Usage:
+##   kubectl apply -f demo-app/load-generator/job.yaml
+##   kubectl logs -f job/burst-load-generator -n demo-app
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: burst-load-generator
+  namespace: demo-app
+  labels:
+    app.kubernetes.io/name: burst-load-generator
+spec:
+  parallelism: 3
+  completions: 3
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: burst-load-generator
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: load-generator
+          image: alpine/curl:latest
+          command:
+            - sh
+            - -c
+            - |
+              FRONTEND="http://opentelemetry-demo-frontendproxy.demo-app.svc.cluster.local:8080"
+              REQUESTS=200
+              CONCURRENCY=10
+
+              echo "==> Burst load: $REQUESTS requests at $CONCURRENCY concurrency"
+              echo "==> Target: $FRONTEND"
+
+              # Simulate realistic user paths
+              PATHS=(
+                "/"
+                "/api/products"
+                "/api/cart"
+                "/api/recommendations?productIds=OLJCESPC7Z"
+                "/api/checkout"
+                "/api/currencies"
+              )
+
+              i=0
+              while [ $i -lt $REQUESTS ]; do
+                PATH_IDX=$(( i % ${#PATHS[@]} ))
+                URL="$FRONTEND${PATHS[$PATH_IDX]}"
+                curl -sf --max-time 5 "$URL" -o /dev/null &
+                i=$(( i + 1 ))
+                # Throttle to concurrency limit
+                if [ $(( i % CONCURRENCY )) -eq 0 ]; then
+                  wait
+                fi
+              done
+              wait
+
+              echo "==> Burst complete: $REQUESTS requests sent"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi

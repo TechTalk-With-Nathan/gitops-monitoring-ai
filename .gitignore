@@ -1,0 +1,30 @@
+# Secrets — never commit
+*.env
+secrets/
+*-secret.yaml
+*-secrets.yaml
+*.pem
+*.key
+
+# Local overrides
+*.local.yaml
+values.local.yaml
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# k3d / kubeconfig
+kubeconfig
+.kubeconfig
+
+# Terraform state (if added later)
+*.tfstate
+*.tfstate.backup
+.terraform/
+
+# Helm
+charts/

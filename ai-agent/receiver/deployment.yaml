@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-analysis-receiver
+  namespace: ai-agent
+  labels:
+    app.kubernetes.io/name: ai-analysis-receiver
+    app.kubernetes.io/component: webhook-receiver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ai-analysis-receiver
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ai-analysis-receiver
+        app.kubernetes.io/component: webhook-receiver
+      annotations:
+        prometheus.io/scrape: "false"
+    spec:
+      containers:
+        - name: receiver
+          image: python:3.11-alpine
+          command:
+            - sh
+            - -c
+            - |
+              pip install --quiet flask requests && python /app/receiver.py
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: LOKI_URL
+              value: "http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push"
+            - name: GRAFANA_URL
+              value: "http://kube-prometheus-stack-grafana.monitoring.svc.cluster.local"
+            # Optional: set a Grafana service account token for annotations
+            # - name: GRAFANA_SERVICE_ACCOUNT_TOKEN
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: grafana-sa-token
+            #       key: token
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          volumeMounts:
+            - name: script
+              mountPath: /app
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 30
+      volumes:
+        - name: script
+          configMap:
+            name: ai-analysis-receiver-script
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-analysis-receiver
+  namespace: ai-agent
+  labels:
+    app.kubernetes.io/name: ai-analysis-receiver
+spec:
+  selector:
+    app.kubernetes.io/name: ai-analysis-receiver
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+  type: ClusterIP

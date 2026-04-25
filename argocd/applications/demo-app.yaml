@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: demo-app
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+      chart: opentelemetry-demo
+      targetRevision: "0.33.3"
+      helm:
+        valueFiles:
+          - $values/demo-app/values.yaml
+    - repoURL: https://github.com/TechTalk-With-Nathan/gitops-monitoring-ai
+      targetRevision: HEAD
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: demo-app
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

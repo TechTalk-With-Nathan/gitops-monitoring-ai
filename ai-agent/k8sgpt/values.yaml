@@ -1,0 +1,26 @@
+## k8sgpt-operator Helm values
+## chart: k8sgpt/k8sgpt-operator v0.2.4
+
+manager:
+  image:
+    repository: ghcr.io/k8sgpt-ai/k8sgpt-operator
+    tag: ""  # defaults to chart appVersion
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+  # Expose Prometheus metrics from the operator
+  metrics:
+    bindAddress: ":8080"
+
+serviceMonitor:
+  enabled: true
+  namespace: k8sgpt-operator-system
+
+# CRDs installed by the chart
+installCRDs: true

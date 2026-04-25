@@ -1,0 +1,252 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-ai-analysis
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  ai-analysis.json: |
+    {
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "description": "Real-time AI-powered Kubernetes analysis from k8sgpt + Ollama",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 1 },
+                  { "color": "red", "value": 5 }
+                ]
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 5, "x": 0, "y": 0 },
+          "id": 1,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "area",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "textMode": "auto"
+          },
+          "title": "Active Issues",
+          "type": "stat",
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "${datasource}" },
+              "expr": "sum(k8sgpt_number_of_results) or vector(0)",
+              "legendFormat": "Issues",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 1 },
+                  { "color": "red", "value": 3 }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 5, "x": 5, "y": 0 },
+          "id": 2,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "center",
+            "orientation": "auto",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "textMode": "auto"
+          },
+          "title": "Critical Issues",
+          "type": "stat",
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "${datasource}" },
+              "expr": "sum(k8sgpt_number_of_results{kind=~\"Pod|Deployment\"}) or vector(0)",
+              "legendFormat": "Critical",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "fieldConfig": {
+            "defaults": { "color": { "mode": "palette-classic" }, "custom": { "fillOpacity": 70, "lineWidth": 0 }, "unit": "short" },
+            "overrides": []
+          },
+          "gridPos": { "h": 4, "w": 14, "x": 10, "y": 0 },
+          "id": 3,
+          "options": {
+            "barAlignment": 0,
+            "displayMode": "gradient",
+            "legend": { "displayMode": "list", "placement": "right", "showLegend": true },
+            "orientation": "horizontal",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "showUnfilled": true
+          },
+          "title": "Issues by Kind",
+          "type": "bargauge",
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "${datasource}" },
+              "expr": "k8sgpt_number_of_results_by_type",
+              "legendFormat": "{{kind}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "loki", "uid": "${lokiDatasource}" },
+          "gridPos": { "h": 18, "w": 24, "x": 0, "y": 4 },
+          "id": 4,
+          "options": {
+            "dedupStrategy": "none",
+            "enableLogDetails": true,
+            "prettifyLogMessage": true,
+            "showCommonLabels": false,
+            "showLabels": true,
+            "showTime": true,
+            "sortOrder": "Descending",
+            "wrapLogMessage": false
+          },
+          "title": "AI Analysis - k8sgpt Results",
+          "type": "logs",
+          "targets": [
+            {
+              "datasource": { "type": "loki", "uid": "${lokiDatasource}" },
+              "expr": "{job=\"k8sgpt-analysis\"} | json | line_format \"[{{.kind}}/{{.namespace}}/{{.resource}}] {{.ai_analysis}}\"",
+              "refId": "A",
+              "queryType": "range"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisBorderShow": false,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "showPoints": "auto",
+                "spanNulls": false
+              },
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 22 },
+          "id": 5,
+          "options": {
+            "legend": { "calcs": ["last", "max"], "displayMode": "table", "placement": "right", "showLegend": true },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "title": "Issue Count Over Time",
+          "type": "timeseries",
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "${datasource}" },
+              "expr": "sum(k8sgpt_number_of_results) or vector(0)",
+              "legendFormat": "Total Issues",
+              "refId": "A"
+            },
+            {
+              "datasource": { "type": "prometheus", "uid": "${datasource}" },
+              "expr": "k8sgpt_number_of_results_by_type",
+              "legendFormat": "{{kind}}",
+              "refId": "B"
+            }
+          ]
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "tags": ["k8sgpt", "ai", "sre", "monitoring", "gitops"],
+      "templating": {
+        "list": [
+          {
+            "current": {},
+            "hide": 0,
+            "includeAll": false,
+            "label": "Prometheus",
+            "multi": false,
+            "name": "datasource",
+            "options": [],
+            "query": "prometheus",
+            "refresh": 1,
+            "type": "datasource"
+          },
+          {
+            "current": {},
+            "hide": 0,
+            "includeAll": false,
+            "label": "Loki",
+            "multi": false,
+            "name": "lokiDatasource",
+            "options": [],
+            "query": "loki",
+            "refresh": 1,
+            "type": "datasource"
+          },
+          {
+            "current": { "selected": false, "text": "All", "value": "$__all" },
+            "datasource": { "type": "prometheus", "uid": "${datasource}" },
+            "definition": "label_values(k8sgpt_number_of_results_by_type, namespace)",
+            "hide": 0,
+            "includeAll": true,
+            "label": "Namespace",
+            "multi": true,
+            "name": "namespace",
+            "query": "label_values(k8sgpt_number_of_results_by_type, namespace)",
+            "refresh": 2,
+            "type": "query"
+          }
+        ]
+      },
+      "time": { "from": "now-3h", "to": "now" },
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "AI SRE Agent - k8sgpt Analysis",
+      "uid": "k8sgpt-ai-analysis",
+      "version": 1
+    }

@@ -1,0 +1,31 @@
+## Fault Injection: Memory Pressure / OOM Risk
+##
+## What it does: disables the recommendation service cache, forcing it to
+## rebuild on every request and exhaust memory over time.
+## Expected alerts: ContainerMemoryUsageHigh, OOMKilled, k8sgpt detects
+##                  RecommendationService memory pressure.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opentelemetry-demo-recommendationservice
+  namespace: demo-app
+  annotations:
+    fault-injection/type: "memory-leak"
+    fault-injection/active: "true"
+spec:
+  template:
+    spec:
+      containers:
+        - name: recommendationservice
+          env:
+            - name: RECOMMENDATION_SERVICE_CACHE_FAILURE
+              value: "true"
+          # Tighten the memory limit so OOM happens faster for demo
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 128Mi

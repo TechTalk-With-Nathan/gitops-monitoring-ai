@@ -1,0 +1,68 @@
+## Grafana Alloy values
+## chart: grafana/alloy v0.9.2
+
+alloy:
+  # Load config from the ConfigMap we manage separately
+  configMap:
+    create: false
+    name: alloy-config
+    key: config.alloy
+
+  # DaemonSet needs host path access for reading pod logs from /var/log/pods
+  mounts:
+    varlog: true      # mounts /var/log to read pod logs
+    dockercontainers: false
+
+  # Required for reading container logs on the node
+  securityContext:
+    privileged: true
+    runAsUser: 0
+
+  # OTel receiver ports
+  extraPorts:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+      protocol: TCP
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+controller:
+  type: daemonset
+
+serviceAccount:
+  create: true
+  annotations: {}
+
+rbac:
+  create: true
+
+# Expose Alloy metrics for Prometheus scraping
+serviceMonitor:
+  enabled: true
+  namespace: monitoring
+  interval: 60s
+
+# Expose OTLP endpoints as a ClusterIP service so apps can send traces
+service:
+  enabled: true
+  type: ClusterIP
+  extraPorts:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+      protocol: TCP

@@ -1,0 +1,51 @@
+## Tempo values - single-binary for demo
+## chart: grafana/tempo v1.10.3
+
+tempo:
+  reportingEnabled: false
+
+  storage:
+    trace:
+      backend: local
+      local:
+        path: /var/tempo/traces
+
+  # Accept traces from Alloy via OTLP gRPC/HTTP
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+        http:
+          endpoint: "0.0.0.0:4318"
+    jaeger:
+      protocols:
+        thrift_http:
+          endpoint: "0.0.0.0:14268"
+
+  # Expose metrics for Prometheus scraping
+  metricsGenerator:
+    enabled: true
+    remoteWriteUrl: "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/api/v1/write"
+
+  retention: 336h  # 14 days
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+persistence:
+  enabled: true
+  size: 10Gi
+
+serviceMonitor:
+  enabled: true
+
+# Expose tempo service for Grafana datasource
+service:
+  type: ClusterIP
+  port: 3100

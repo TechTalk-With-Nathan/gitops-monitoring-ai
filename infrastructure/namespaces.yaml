@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    app.kubernetes.io/managed-by: argocd
+    purpose: observability
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ai-agent
+  labels:
+    app.kubernetes.io/managed-by: argocd
+    purpose: ai-analysis
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo-app
+  labels:
+    app.kubernetes.io/managed-by: argocd
+    purpose: demo
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: k8sgpt-operator-system
+  labels:
+    app.kubernetes.io/managed-by: argocd
+    purpose: ai-analysis

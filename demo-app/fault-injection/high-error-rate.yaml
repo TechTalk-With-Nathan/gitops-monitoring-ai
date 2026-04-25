@@ -1,0 +1,29 @@
+## Fault Injection: High Error Rate
+##
+## GitOps workflow:
+##   kubectl apply -f demo-app/fault-injection/high-error-rate.yaml
+##   → ArgoCD detects drift and shows OutOfSync
+##   → k8sgpt detects pod errors and fires AI analysis
+##   → Revert: kubectl apply -f demo-app/fault-injection/restore.yaml
+##
+## What it does: patches productCatalogService to return errors on 1 in 3 requests.
+## Expected alerts: HighErrorRate, PodRestarts
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opentelemetry-demo-productcatalogservice
+  namespace: demo-app
+  annotations:
+    fault-injection/type: "high-error-rate"
+    fault-injection/active: "true"
+spec:
+  template:
+    spec:
+      containers:
+        - name: productcatalogservice
+          env:
+            - name: PRODUCT_CATALOG_FAILURE
+              value: "true"
+            - name: PRODUCT_CATALOG_FAILURE_RATE
+              value: "0.33"

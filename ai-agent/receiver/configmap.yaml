@@ -1,0 +1,169 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-analysis-receiver-script
+  namespace: ai-agent
+data:
+  receiver.py: |
+    #!/usr/bin/env python3
+    """
+    AI Analysis Receiver
+    Receives webhooks from:
+      - k8sgpt operator (path: /k8sgpt)  - periodic analysis results
+      - AlertManager      (path: /alert)  - fired alerts trigger on-demand analysis
+    Forwards structured logs to Loki and creates Grafana annotations.
+    """
+    import json
+    import os
+    import time
+    import logging
+    from datetime import datetime, timezone
+
+    from flask import Flask, request, jsonify
+    import requests
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    log = logging.getLogger(__name__)
+
+    app = Flask(__name__)
+
+    LOKI_URL       = os.getenv("LOKI_URL", "http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push")
+    GRAFANA_URL    = os.getenv("GRAFANA_URL", "http://kube-prometheus-stack-grafana.monitoring.svc.cluster.local")
+    GRAFANA_TOKEN  = os.getenv("GRAFANA_SERVICE_ACCOUNT_TOKEN", "")
+
+
+    def now_ns() -> str:
+        return str(int(time.time() * 1e9))
+
+
+    def push_to_loki(stream_labels: dict, message: str) -> None:
+        payload = {
+            "streams": [{
+                "stream": stream_labels,
+                "values": [[now_ns(), message]]
+            }]
+        }
+        try:
+            resp = requests.post(LOKI_URL, json=payload, timeout=5)
+            resp.raise_for_status()
+            log.info("Pushed to Loki: %s", stream_labels)
+        except Exception as exc:
+            log.warning("Failed to push to Loki: %s", exc)
+
+
+    def post_grafana_annotation(text: str, tags: list) -> None:
+        if not GRAFANA_TOKEN:
+            return
+        try:
+            resp = requests.post(
+                f"{GRAFANA_URL}/api/annotations",
+                headers={"Authorization": f"Bearer {GRAFANA_TOKEN}", "Content-Type": "application/json"},
+                json={"text": text, "tags": tags, "time": int(time.time() * 1000)},
+                timeout=5,
+            )
+            resp.raise_for_status()
+        except Exception as exc:
+            log.warning("Failed to post Grafana annotation: %s", exc)
+
+
+    # ── k8sgpt webhook ────────────────────────────────────────────────────────────
+
+    @app.route("/k8sgpt", methods=["POST"])
+    def receive_k8sgpt():
+        raw = request.get_json(force=True, silent=True) or []
+        results = raw if isinstance(raw, list) else [raw]
+
+        for result in results:
+            name      = result.get("name", "unknown")
+            kind      = result.get("kind", "unknown")
+            namespace = result.get("namespace", "default")
+            errors    = result.get("error", [])
+            analysis  = result.get("details", result.get("analysis", ""))
+
+            log_message = json.dumps({
+                "resource":    name,
+                "kind":        kind,
+                "namespace":   namespace,
+                "errors":      errors,
+                "ai_analysis": analysis,
+                "source":      "k8sgpt",
+                "timestamp":   datetime.now(timezone.utc).isoformat(),
+            })
+
+            push_to_loki(
+                stream_labels={
+                    "job":       "k8sgpt-analysis",
+                    "kind":      kind,
+                    "namespace": namespace,
+                    "source":    "k8sgpt",
+                },
+                message=log_message,
+            )
+
+            if analysis:
+                post_grafana_annotation(
+                    text=f"[k8sgpt] {kind}/{namespace}/{name}: {analysis[:200]}",
+                    tags=["k8sgpt", kind.lower(), namespace],
+                )
+
+        return jsonify({"status": "ok", "processed": len(results)}), 200
+
+
+    # ── AlertManager webhook ──────────────────────────────────────────────────────
+
+    @app.route("/alert", methods=["POST"])
+    def receive_alert():
+        data    = request.get_json(force=True, silent=True) or {}
+        alerts  = data.get("alerts", [])
+
+        for alert in alerts:
+            status    = alert.get("status", "unknown")
+            name      = alert.get("labels", {}).get("alertname", "unknown")
+            namespace = alert.get("labels", {}).get("namespace", "default")
+            severity  = alert.get("labels", {}).get("severity", "warning")
+            summary   = alert.get("annotations", {}).get("summary", "")
+            description = alert.get("annotations", {}).get("description", "")
+
+            log_message = json.dumps({
+                "alertname":   name,
+                "namespace":   namespace,
+                "severity":    severity,
+                "status":      status,
+                "summary":     summary,
+                "description": description,
+                "source":      "alertmanager",
+                "timestamp":   datetime.now(timezone.utc).isoformat(),
+            })
+
+            push_to_loki(
+                stream_labels={
+                    "job":       "alertmanager-webhook",
+                    "alertname": name,
+                    "namespace": namespace,
+                    "severity":  severity,
+                    "status":    status,
+                },
+                message=log_message,
+            )
+
+            if status == "firing":
+                post_grafana_annotation(
+                    text=f"[{severity.upper()}] {name} in {namespace}: {summary}",
+                    tags=["alert", severity, namespace, name],
+                )
+
+            log.info("Alert %s: %s in %s (%s)", status, name, namespace, severity)
+
+        return jsonify({"status": "ok", "processed": len(alerts)}), 200
+
+
+    # ── Health ────────────────────────────────────────────────────────────────────
+
+    @app.route("/health", methods=["GET"])
+    def health():
+        return jsonify({"status": "healthy"}), 200
+
+
+    if __name__ == "__main__":
+        log.info("AI Analysis Receiver starting on :8080")
+        app.run(host="0.0.0.0", port=8080, threaded=True)

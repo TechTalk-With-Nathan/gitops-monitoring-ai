@@ -1,0 +1,87 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: k8sgpt-operator
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://charts.k8sgpt.ai
+      chart: k8sgpt-operator
+      targetRevision: "0.2.4"
+      helm:
+        valueFiles:
+          - $values/ai-agent/k8sgpt/values.yaml
+    - repoURL: https://github.com/TechTalk-With-Nathan/gitops-monitoring-ai
+      targetRevision: HEAD
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: k8sgpt-operator-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+  # Install CRDs before deploying the K8sGPT CR
+  ignoreDifferences:
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+      jsonPointers:
+        - /spec/preserveUnknownFields
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: k8sgpt-config
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/TechTalk-With-Nathan/gitops-monitoring-ai
+    targetRevision: HEAD
+    path: ai-agent/k8sgpt
+    directory:
+      include: "k8sgpt-cr.yaml"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: k8sgpt-operator-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ai-analysis-receiver
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/TechTalk-With-Nathan/gitops-monitoring-ai
+    targetRevision: HEAD
+    path: ai-agent/receiver
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ai-agent
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

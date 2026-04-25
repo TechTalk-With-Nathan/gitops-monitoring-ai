@@ -1,0 +1,28 @@
+## Fault Injection: Latency Spike
+##
+## What it does: injects artificial 2-second sleep into the ad service,
+## causing cascading latency across checkout flow.
+## Expected alerts: HighP99Latency, SlowRequest, Traces show ad service as bottleneck.
+## Great for demonstrating Tempo trace waterfall + k8sgpt correlation.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opentelemetry-demo-adservice
+  namespace: demo-app
+  annotations:
+    fault-injection/type: "latency-spike"
+    fault-injection/active: "true"
+spec:
+  template:
+    spec:
+      containers:
+        - name: adservice
+          env:
+            - name: AD_SERVICE_FAILURE
+              value: "true"
+            # Simulates slow external call (e.g. ML model inference timeout)
+            - name: FLAGD_HOST
+              value: "opentelemetry-demo-flagd"
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "service.namespace=demo-app,deployment.environment=demo,fault.type=latency"

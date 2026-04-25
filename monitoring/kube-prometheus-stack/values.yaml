@@ -1,0 +1,179 @@
+## kube-prometheus-stack values
+## chart: prometheus-community/kube-prometheus-stack v66.2.1
+
+nameOverride: ""
+fullnameOverride: ""
+
+## ── Prometheus ─────────────────────────────────────────────────────────────────
+
+prometheus:
+  prometheusSpec:
+    # Allow Grafana Alloy to push metrics via remote_write
+    enableRemoteWriteReceiver: true
+    # Accept ServiceMonitors from all namespaces
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: {}
+    serviceMonitorNamespaceSelector: {}
+    podMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelector: {}
+    podMonitorNamespaceSelector: {}
+    ruleSelectorNilUsesHelmValues: false
+    ruleSelector: {}
+    ruleNamespaceSelector: {}
+
+    retention: 15d
+    retentionSize: "18GB"
+
+    resources:
+      requests:
+        memory: 512Mi
+        cpu: 250m
+      limits:
+        memory: 2Gi
+        cpu: 1000m
+
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 20Gi
+
+    additionalScrapeConfigs:
+      # Scrape k8sgpt operator metrics
+      - job_name: k8sgpt-operator
+        static_configs:
+          - targets: ["k8sgpt-operator-controller-manager-metrics-service.k8sgpt-operator-system.svc.cluster.local:8080"]
+        metrics_path: /metrics
+
+## ── AlertManager ───────────────────────────────────────────────────────────────
+
+alertmanager:
+  alertmanagerSpec:
+    storage:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 2Gi
+
+  config:
+    global:
+      resolve_timeout: 5m
+
+    route:
+      group_by: ["alertname", "namespace", "severity"]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      receiver: k8sgpt-webhook
+      routes:
+        - match:
+            severity: critical
+          receiver: k8sgpt-webhook
+          group_wait: 10s
+        - match:
+            severity: warning
+          receiver: k8sgpt-webhook
+
+    receivers:
+      - name: k8sgpt-webhook
+        webhook_configs:
+          - url: "http://ai-analysis-receiver.ai-agent.svc.cluster.local:8080/alert"
+            send_resolved: true
+            http_config:
+              follow_redirects: true
+      - name: "null"
+
+    inhibit_rules:
+      - source_match:
+          severity: critical
+        target_match:
+          severity: warning
+        equal: ["alertname", "namespace"]
+
+## ── Grafana ────────────────────────────────────────────────────────────────────
+
+grafana:
+  enabled: true
+  adminPassword: "admin"  # change for production
+
+  persistence:
+    enabled: true
+    size: 5Gi
+
+  # Sidecar picks up ConfigMaps labelled grafana_dashboard: "1"
+  sidecar:
+    dashboards:
+      enabled: true
+      searchNamespace: ALL
+      label: grafana_dashboard
+      labelValue: "1"
+    datasources:
+      enabled: true
+      searchNamespace: ALL
+      label: grafana_datasource
+      labelValue: "1"
+
+  grafana.ini:
+    server:
+      root_url: "http://localhost:3000"
+    feature_toggles:
+      enable: "traceToMetrics"
+    unified_alerting:
+      enabled: true
+
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+
+  # Install Grafana plugins needed for the demo
+  plugins:
+    - grafana-infinity-datasource
+
+## ── Node Exporter / Kube State Metrics ────────────────────────────────────────
+
+nodeExporter:
+  enabled: true
+
+kube-state-metrics:
+  enabled: true
+
+## ── Default PrometheusRules ────────────────────────────────────────────────────
+
+defaultRules:
+  create: true
+  rules:
+    alertmanager: true
+    etcd: false
+    configReloaders: true
+    general: true
+    k8sContainerCpuUsageSecondsTotal: true
+    k8sContainerMemoryCache: true
+    k8sContainerMemoryRss: true
+    k8sContainerMemorySwap: true
+    k8sContainerResource: true
+    k8sPodOwner: true
+    kubeApiserver: true
+    kubeApiserverAvailability: true
+    kubeApiserverBurnrate: true
+    kubeApiserverHistogram: true
+    kubeApiserverSlos: true
+    kubelet: true
+    kubeControllerManager: false
+    kubeProxy: false
+    kubeSchedulerAlerting: false
+    kubeSchedulerRecording: false
+    kubeStateMetrics: true
+    network: true
+    node: true
+    nodeExporterAlerting: true
+    nodeExporterRecording: true
+    prometheus: true
+    prometheusOperator: true
