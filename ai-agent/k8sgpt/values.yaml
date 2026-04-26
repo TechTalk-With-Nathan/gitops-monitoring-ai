@@ -1,28 +1,24 @@
 ## k8sgpt-operator Helm values
 ## chart: k8sgpt/k8sgpt-operator v0.2.4
 
-manager:
-  image:
-    repository: ghcr.io/k8sgpt-ai/k8sgpt-operator
-    tag: ""  # defaults to chart appVersion
-
-  resources:
-    requests:
-      cpu: 100m
-      memory: 128Mi
-    limits:
-      cpu: 500m
-      memory: 256Mi
-
-  # Expose Prometheus metrics from the operator
-  metrics:
-    bindAddress: ":8080"
-
-  # gcr.io/kubebuilder is deprecated - override to quay.io
+controllerManager:
+  # gcr.io/kubebuilder is deprecated - use quay.io mirror
   kubeRbacProxy:
     image:
       repository: quay.io/brancz/kube-rbac-proxy
       tag: v0.18.1
+
+  manager:
+    image:
+      repository: ghcr.io/k8sgpt-ai/k8sgpt-operator
+      tag: ""  # defaults to chart appVersion
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
 
 serviceMonitor:
   enabled: true
