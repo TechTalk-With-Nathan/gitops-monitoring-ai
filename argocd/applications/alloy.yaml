@@ -17,6 +17,11 @@ spec:
     - repoURL: https://github.com/TechTalk-With-Nathan/gitops-monitoring-ai
       targetRevision: HEAD
       ref: values
+    - repoURL: https://github.com/TechTalk-With-Nathan/gitops-monitoring-ai
+      targetRevision: HEAD
+      path: alloy
+      directory:
+        include: "configmap.yaml"
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring
